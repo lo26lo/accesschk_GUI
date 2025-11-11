@@ -28,7 +28,7 @@ import csv
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple, Union
+from typing import List, Optional, Dict, Tuple
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
@@ -37,10 +37,10 @@ class AppConfig:
     """Configuration centralisée de l'application."""
     
     # Performance
-    BATCH_SIZE = 50  # Équilibre entre fluidité et performance
-    BATCH_TIMEOUT_MS = 25  # Timeout court mais raisonnable
-    UI_UPDATE_INTERVAL_MS = 50  # Fréquent mais pas excessif
-    MAX_DISPLAYED_LINES = 3000  # Limite raisonnable
+    BATCH_SIZE = 50
+    BATCH_TIMEOUT_MS = 25
+    UI_UPDATE_INTERVAL_MS = 50
+    MAX_DISPLAYED_LINES = 3000
     
     # UI
     WINDOW_WIDTH = 1100
@@ -56,10 +56,10 @@ class AppConfig:
     # Sécurité
     MAX_PATH_LENGTH = 260
     ALLOWED_EXTENSIONS = {'.exe'}
-    DANGEROUS_CHARS = ['&', '|', ';', '$', '`', '<', '>']  # Supprimé (), {}, [] qui sont valides dans les chemins
+    DANGEROUS_CHARS = ['&', '|', ';', '$', '`', '<', '>']
     
     # AccessChk
-    PROGRESS_BAR_SPEED = 30  # Réduit de 60 pour moins de consommation CPU
+    PROGRESS_BAR_SPEED = 30
 
 
 def is_running_elevated() -> bool:
@@ -129,10 +129,7 @@ def validate_target_paths(paths_str: str) -> Tuple[bool, str, List[str]]:
     
     validated_paths = []
     for path in raw_paths:
-        # Check for really dangerous characters in individual paths
-        # Note: semicolon is only dangerous within a single path, not as separator
         path_dangerous_chars = ['&', '|', '$', '`', '<', '>']
-        # Check for semicolon within the path (not at boundaries)
         if ';' in path.strip():
             path_dangerous_chars.append(';')
             
@@ -140,7 +137,6 @@ def validate_target_paths(paths_str: str) -> Tuple[bool, str, List[str]]:
         if dangerous_found:
             return False, f"Caractères dangereux détectés dans '{path}': {', '.join(dangerous_found)}", []
         
-        # Normalize path
         try:
             normalized = os.path.normpath(path)
             if len(normalized) > AppConfig.MAX_PATH_LENGTH:
@@ -148,7 +144,6 @@ def validate_target_paths(paths_str: str) -> Tuple[bool, str, List[str]]:
         except (OSError, ValueError) as e:
             return False, f"Chemin invalide '{path}': {str(e)}", []
         
-        # Check if path exists (warning only, not blocking)
         if not os.path.exists(normalized):
             logging.warning(f"Chemin non trouvé (sera ignoré par accesschk): {normalized}")
         
@@ -174,8 +169,6 @@ def sanitize_command_args(args: List[str]) -> List[str]:
         # Check for really dangerous characters (not parentheses, brackets which are valid)
         dangerous_found = [char for char in AppConfig.DANGEROUS_CHARS if char in arg]
         if dangerous_found:
-            # For paths, we already validated them above, so this shouldn't happen
-            # For other args, we can safely quote them if they contain spaces but no dangerous chars
             if os.path.exists(arg) or arg.startswith('-') or arg in ['accepteula', 'nobanner']:
                 sanitized.append(shlex.quote(arg))
             else:
@@ -356,25 +349,7 @@ LINE_RW_PREFIX = re.compile(r"^\s*RW\s+", re.I)
 # Pour coloration rouge (garde l’ancienne heuristique au cas où)
 WRITE_REGEX = re.compile(r"(?:^|\s)(rw|w|write|write_data|file_write_data|file_write|:w|W:|WriteData|FILE_WRITE_DATA)\b", re.I)
 
-# Messages d'erreurs verbeux à ignorer (localisés)
-SUPPRESSED_ERROR_PATTERNS = (
-    re.compile(r"error getting security", re.I),
-    re.compile(r"la syntaxe du nom de fichier", re.I),
-    re.compile(r"répertoire ou de volume est incorrecte", re.I),
-    re.compile(r"repertoire ou de volume est incorrecte", re.I),
-    re.compile(r"has a non-canonical DACL", re.I),
-    re.compile(r"explicit deny after explicit allow", re.I),
-    re.compile(r"explicit allow after inherited allow", re.I),
-    re.compile(r"access denied", re.I),
-    re.compile(r"path not found", re.I),
-    re.compile(r"fichier introuvable", re.I),
-    re.compile(r"accès refusé", re.I),
-    re.compile(r"the system cannot find", re.I),
-    re.compile(r"le système ne peut pas localiser", re.I),
-    re.compile(r"error:", re.I),
-    re.compile(r"erreur:", re.I),
-)
-
+# Messages d'erreurs verbeux à ignorer (pour normalisation)
 SUPPRESSED_ERROR_FOLDED_SNIPPETS = (
     "error getting security",
     "la syntaxe du nom de fichier",
