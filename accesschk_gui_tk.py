@@ -28,7 +28,7 @@ import csv
 import xml.etree.ElementTree as ET
 from datetime import datetime
 from pathlib import Path
-from typing import List, Optional, Dict, Any, Tuple, Union
+from typing import List, Optional, Dict, Tuple
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 
@@ -37,10 +37,10 @@ class AppConfig:
     """Configuration centralisée de l'application."""
     
     # Performance
-    BATCH_SIZE = 50  # Équilibre entre fluidité et performance
-    BATCH_TIMEOUT_MS = 25  # Timeout court mais raisonnable
-    UI_UPDATE_INTERVAL_MS = 50  # Fréquent mais pas excessif
-    MAX_DISPLAYED_LINES = 3000  # Limite raisonnable
+    BATCH_SIZE = 50
+    BATCH_TIMEOUT_MS = 25
+    UI_UPDATE_INTERVAL_MS = 50
+    MAX_DISPLAYED_LINES = 3000
     
     # UI
     WINDOW_WIDTH = 1100
@@ -56,18 +56,10 @@ class AppConfig:
     # Sécurité
     MAX_PATH_LENGTH = 260
     ALLOWED_EXTENSIONS = {'.exe'}
-    DANGEROUS_CHARS = ['&', '|', ';', '$', '`', '<', '>']  # Supprimé (), {}, [] qui sont valides dans les chemins
+    DANGEROUS_CHARS = ['&', '|', ';', '$', '`', '<', '>']
     
     # AccessChk
-    PROGRESS_BAR_SPEED = 30  # Réduit de 60 pour moins de consommation CPU
-
-
-# Configuration des constantes (héritées pour compatibilité)
-EXPORT_DEFAULT = AppConfig.EXPORT_DEFAULT
-DIFF_EXPORT_DEFAULT = AppConfig.DIFF_EXPORT_DEFAULT
-MAX_PATH_LENGTH = AppConfig.MAX_PATH_LENGTH
-ALLOWED_EXTENSIONS = AppConfig.ALLOWED_EXTENSIONS
-DANGEROUS_CHARS = AppConfig.DANGEROUS_CHARS
+    PROGRESS_BAR_SPEED = 30
 
 
 def is_running_elevated() -> bool:
@@ -96,13 +88,13 @@ def validate_executable_path(path: str) -> Tuple[bool, str]:
     # Normalize and check path length
     try:
         normalized_path = os.path.normpath(path.strip())
-        if len(normalized_path) > MAX_PATH_LENGTH:
-            return False, f"Le chemin est trop long (max {MAX_PATH_LENGTH} caractères)"
+        if len(normalized_path) > AppConfig.MAX_PATH_LENGTH:
+            return False, f"Le chemin est trop long (max {AppConfig.MAX_PATH_LENGTH} caractères)"
     except (OSError, ValueError) as e:
         return False, f"Chemin invalide: {str(e)}"
     
     # Check for dangerous characters
-    if any(char in normalized_path for char in DANGEROUS_CHARS):
+    if any(char in normalized_path for char in AppConfig.DANGEROUS_CHARS):
         return False, "Le chemin contient des caractères dangereux"
     
     # Check if file exists
@@ -111,7 +103,7 @@ def validate_executable_path(path: str) -> Tuple[bool, str]:
     
     # Check file extension
     file_ext = Path(normalized_path).suffix.lower()
-    if file_ext not in ALLOWED_EXTENSIONS:
+    if file_ext not in AppConfig.ALLOWED_EXTENSIONS:
         return False, f"Extension de fichier non autorisée: {file_ext}"
     
     # Check if it's actually accesschk.exe
@@ -137,10 +129,7 @@ def validate_target_paths(paths_str: str) -> Tuple[bool, str, List[str]]:
     
     validated_paths = []
     for path in raw_paths:
-        # Check for really dangerous characters in individual paths
-        # Note: semicolon is only dangerous within a single path, not as separator
         path_dangerous_chars = ['&', '|', '$', '`', '<', '>']
-        # Check for semicolon within the path (not at boundaries)
         if ';' in path.strip():
             path_dangerous_chars.append(';')
             
@@ -148,15 +137,13 @@ def validate_target_paths(paths_str: str) -> Tuple[bool, str, List[str]]:
         if dangerous_found:
             return False, f"Caractères dangereux détectés dans '{path}': {', '.join(dangerous_found)}", []
         
-        # Normalize path
         try:
             normalized = os.path.normpath(path)
-            if len(normalized) > MAX_PATH_LENGTH:
+            if len(normalized) > AppConfig.MAX_PATH_LENGTH:
                 return False, f"Chemin trop long: {path}", []
         except (OSError, ValueError) as e:
             return False, f"Chemin invalide '{path}': {str(e)}", []
         
-        # Check if path exists (warning only, not blocking)
         if not os.path.exists(normalized):
             logging.warning(f"Chemin non trouvé (sera ignoré par accesschk): {normalized}")
         
@@ -180,10 +167,8 @@ def sanitize_command_args(args: List[str]) -> List[str]:
             continue
         
         # Check for really dangerous characters (not parentheses, brackets which are valid)
-        dangerous_found = [char for char in DANGEROUS_CHARS if char in arg]
+        dangerous_found = [char for char in AppConfig.DANGEROUS_CHARS if char in arg]
         if dangerous_found:
-            # For paths, we already validated them above, so this shouldn't happen
-            # For other args, we can safely quote them if they contain spaces but no dangerous chars
             if os.path.exists(arg) or arg.startswith('-') or arg in ['accepteula', 'nobanner']:
                 sanitized.append(shlex.quote(arg))
             else:
@@ -364,25 +349,7 @@ LINE_RW_PREFIX = re.compile(r"^\s*RW\s+", re.I)
 # Pour coloration rouge (garde l’ancienne heuristique au cas où)
 WRITE_REGEX = re.compile(r"(?:^|\s)(rw|w|write|write_data|file_write_data|file_write|:w|W:|WriteData|FILE_WRITE_DATA)\b", re.I)
 
-# Messages d'erreurs verbeux à ignorer (localisés)
-SUPPRESSED_ERROR_PATTERNS = (
-    re.compile(r"error getting security", re.I),
-    re.compile(r"la syntaxe du nom de fichier", re.I),
-    re.compile(r"répertoire ou de volume est incorrecte", re.I),
-    re.compile(r"repertoire ou de volume est incorrecte", re.I),
-    re.compile(r"has a non-canonical DACL", re.I),
-    re.compile(r"explicit deny after explicit allow", re.I),
-    re.compile(r"explicit allow after inherited allow", re.I),
-    re.compile(r"access denied", re.I),
-    re.compile(r"path not found", re.I),
-    re.compile(r"fichier introuvable", re.I),
-    re.compile(r"accès refusé", re.I),
-    re.compile(r"the system cannot find", re.I),
-    re.compile(r"le système ne peut pas localiser", re.I),
-    re.compile(r"error:", re.I),
-    re.compile(r"erreur:", re.I),
-)
-
+# Messages d'erreurs verbeux à ignorer (pour normalisation)
 SUPPRESSED_ERROR_FOLDED_SNIPPETS = (
     "error getting security",
     "la syntaxe du nom de fichier",
@@ -420,22 +387,18 @@ def _normalize_for_error_matching(text: str) -> str:
 def matches_suppressed_error(text: str) -> bool:
     """True when ``text`` corresponds to a known noisy AccessChk error message."""
     
-    # Version ultra-rapide : vérification par mots-clés AVANT regex coûteuses
+    # Fast keyword-based checks (faster than regex)
     text_lower = text.lower()
-    
-    # Vérifications rapides par mots-clés (plus rapide que regex)
-    fast_checks = [
+    fast_keywords = [
         'syntaxe', 'répertoire', 'repertoire', 'incorrecte',
         'canonical', 'explicit', 'denied', 'security',
-        'introuvable', 'refusé', 'refuse', 'cannot find'
+        'introuvable', 'refusé', 'refuse', 'cannot find', 'error:', 'erreur:'
     ]
     
-    if any(keyword in text_lower for keyword in fast_checks):
+    if any(keyword in text_lower for keyword in fast_keywords):
         return True
     
-    # Fallback vers l'ancienne méthode seulement si nécessaire
-    if any(p.search(text) for p in SUPPRESSED_ERROR_PATTERNS):
-        return True
+    # Fallback to normalized matching for edge cases
     folded = _normalize_for_error_matching(text)
     return any(snippet in folded for snippet in SUPPRESSED_ERROR_FOLDED_SNIPPETS)
 
@@ -608,46 +571,23 @@ class AccessChkRunner:
                     
                     s = decode_bytes_with_fallback(chunk).rstrip("\r\n")
                     
-                    # Filtrage ultra-rapide par vérification de caractères clés AVANT toute autre opération
-                    if s and len(s) > 10:  # Éviter les vérifications sur lignes vides/courtes
-                        # Vérification rapide par caractères pour les erreurs françaises
-                        if 'syntaxe' in s or 'répertoire' in s or 'repertoire' in s or 'incorrecte' in s:
-                            continue
-                        # Vérification rapide pour les erreurs anglaises
-                        if 'canonical' in s or 'explicit' in s or 'denied' in s:
-                            continue
-                    
+                    # Skip CJK characters in normal output
                     if not is_err and contains_cjk(s):
                         continue
                     
-                    # Filtrage précoce des erreurs fréquentes pour améliorer les performances
-                    # (gardé en backup mais normalement pas nécessaire avec le filtrage ci-dessus)
+                    # Skip suppressed errors
                     if matches_suppressed_error(s):
-                        continue
-                    
-                    # Filtrage spécial pour l'erreur française très fréquente (backup)
-                    if "la syntaxe du nom de fichier" in s.lower():
-                        continue
-                    
-                    if "répertoire ou de volume est incorrecte" in s.lower():
-                        continue
-                        
-                    if "repertoire ou de volume est incorrecte" in s.lower():
                         continue
                     
                     if is_err and "Invalid account name" in s: 
                         invalid = True
                     
-                    # Éviter le regex WRITE_REGEX sur les erreurs connues pour gagner du temps
-                    if is_err or any(err_word in s.lower() for err_word in ['error', 'erreur', 'syntaxe', 'canonical']):
-                        has_write = False
-                    else:
-                        has_write = bool(WRITE_REGEX.search(s))
+                    # Determine if line has write permissions
+                    has_write = bool(WRITE_REGEX.search(s)) if not is_err else False
                     
-                    # Éviter de surcharger la queue - pause si elle devient trop pleine
-                    if self.queue.qsize() > 500:  # Réduit de 1000 à 500 pour être plus réactif
-                        import time
-                        time.sleep(0.0005)  # Pause encore plus courte
+                    # Throttle if queue is getting too full
+                    if self.queue.qsize() > 500:
+                        time.sleep(0.001)
                     
                     self.queue.put({"line": s, "write": has_write, "err": is_err})
             except (UnicodeError, IOError) as e:
@@ -720,7 +660,6 @@ class AccessChkGUI(tk.Tk):
         self._isdir_cache = {}
         self._suppressed_errors = 0
         self._pending_path = None
-        self._ui_buffer = []  # Buffer pour optimiser les mises à jour UI
         
         # État du scan
         self.current_target = None
@@ -1215,9 +1154,6 @@ Développé avec Python et Tkinter
         self._suppressed_errors = 0
         self._pending_path = None
         self.scan_mode = mode
-        
-
-        
         # Mise à jour de l'UI
         self.txt.configure(state=tk.NORMAL)
         self.txt.delete("1.0", tk.END)
@@ -1230,7 +1166,6 @@ Développé avec Python et Tkinter
         self.running = True
         self.current_target = None
         self.current_principal = None
-        self.scan_mode = mode
         
         # État des boutons
         self.btn_scan_base.configure(state=tk.DISABLED)
@@ -1280,14 +1215,6 @@ Développé avec Python et Tkinter
             
             iteration_count += 1
             
-            # Pause micro pour éviter les blocages sur gros volumes
-            if iteration_count % 10 == 0:
-                self.update_idletasks()
-            
-            # Pause plus longue tous les 100 éléments pour éviter les blocages complets
-            if iteration_count % 100 == 0:
-                self.after_idle(lambda: None)  # Force le traitement des événements en attente
-            
             if "_status" in item:
                 self.status_var.set(item["_status"])
                 continue
@@ -1329,18 +1256,8 @@ Développé avec Python et Tkinter
             
             # Vérification des exclusions - filtrer les lignes contenant des chemins exclus
             if self.exclusions:
-                line_text = text.lower()
-                should_exclude = False
-                for exclusion_path in self.exclusions:
-                    if exclusion_path.strip():
-                        # Normaliser le chemin d'exclusion
-                        normalized_exclusion = os.path.normpath(exclusion_path.strip()).lower()
-                        # Vérifier si le chemin exclu est présent dans la ligne
-                        if normalized_exclusion in line_text or line_text.startswith(normalized_exclusion.lower()):
-                            should_exclude = True
-                            break
-                
-                if should_exclude:
+                line_lower = text.lower()
+                if any(os.path.normpath(excl).lower() in line_lower for excl in self.exclusions if excl.strip()):
                     processed += 1
                     continue
             
@@ -1351,30 +1268,23 @@ Développé avec Python et Tkinter
                 processed += 1
                 continue
             
-            # Limitation drastique du nombre de lignes pour éviter les ralentissements
+            # Limitation du nombre de lignes pour éviter les ralentissements
             if len(self.logs) >= self.app_config.MAX_DISPLAYED_LINES:
-                # Au lieu de supprimer ligne par ligne, on repart avec une liste plus petite
-                # Garde seulement les dernières lignes importantes (RW) + un échantillon
-                important_lines = [item for item in self.logs[-500:] if item["write"] and not item["err"]]
-                sample_lines = self.logs[-200:]  # Garde les 200 dernières lignes pour contexte
+                # Garde les lignes importantes (RW) et un échantillon récent
+                important_lines = [item for item in self.logs if item["write"] and not item["err"]][-500:]
+                recent_lines = self.logs[-300:]
                 
-                # Combine les lignes importantes avec l'échantillon
-                self.logs = important_lines + sample_lines
+                # Combine et déduplique
+                self.logs = important_lines + [line for line in recent_lines if line not in important_lines]
                 self._line_count = len(self.logs)
                 self._write_count = sum(1 for item in self.logs if item["write"] and not item["err"])
                 
-                # Reconstruit l'affichage entièrement (plus rapide que supprimer ligne par ligne)
+                # Reconstruit l'affichage
                 self.txt.configure(state=tk.NORMAL)
                 self.txt.delete("1.0", tk.END)
                 
-                # Redessine seulement les lignes conservées
                 for item in self.logs:
-                    if item["err"]:
-                        tag = "err"
-                    elif item["write"]:
-                        tag = "write"  # Rouge avec gras pour les RW
-                    else:
-                        tag = "normal"
+                    tag = "err" if item["err"] else ("write" if item["write"] else "normal")
                     self.txt.insert(tk.END, item["line"] + "\n", tag)
                 
                 self.txt.configure(state=tk.DISABLED)
@@ -1599,7 +1509,7 @@ Développé avec Python et Tkinter
     def _export_filtered(self) -> None:
         """Exporte les lignes actuellement visibles vers un fichier texte."""
         if not self.logs: messagebox.showinfo("Export", "Aucun log à exporter."); return
-        path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text files","*.txt"), ("All files","*.*")], initialfile=EXPORT_DEFAULT)
+        path = filedialog.asksaveasfilename(defaultextension=".txt", filetypes=[("Text files","*.txt"), ("All files","*.*")], initialfile=AppConfig.EXPORT_DEFAULT)
         if not path: return
         try:
             with open(path, "w", encoding="utf-8") as fh:
@@ -1799,37 +1709,28 @@ Développé avec Python et Tkinter
         ]
         
         # Filtrer les lignes pour ne garder que les VRAIMENT nouveaux droits RW
-        # c'est-à-dire les lignes +RW qui n'ont pas de ligne -RW correspondante
         filtered_diff_lines = []
         added_rw_lines = []
         removed_rw_lines = []
         
-        # Première passe : collecter les ajouts et suppressions
+        # Première passe : collecter les ajouts et suppressions RW
         for line in diff_lines:
-            if line.startswith("+") and "RW" in line:
-                # Nettoyer la ligne pour la comparaison (enlever le +)
+            if "RW" in line:
                 clean_line = line[1:].strip()
-                added_rw_lines.append((line, clean_line))
-            elif line.startswith("-") and "RW" in line:
-                # Nettoyer la ligne pour la comparaison (enlever le -)
-                clean_line = line[1:].strip()
-                removed_rw_lines.append(clean_line)
+                if line.startswith("+"):
+                    added_rw_lines.append((line, clean_line))
+                elif line.startswith("-"):
+                    removed_rw_lines.append(clean_line)
         
-        # Deuxième passe : garder seulement les vrais nouveaux droits (+RW)
+        # Deuxième passe : garder seulement les vrais nouveaux droits
         for original_line, clean_added in added_rw_lines:
-            # Vérifier si cette ligne ajoutée n'était pas déjà présente (pas de ligne - correspondante)
             if clean_added not in removed_rw_lines:
                 filtered_diff_lines.append(original_line)
         
-        # Ajouter les chemins de répertoires pour le contexte MAIS pas les lignes RW existantes
+        # Ajouter les chemins de répertoires pour le contexte
         for line in diff_lines:
-            if not line.startswith(("+", "-")):
-                # Exclure les lignes qui montrent les anciens droits RW (sans + ou -)
-                if "RW" in line:
-                    continue  # Ne pas afficher les anciens droits RW
-                # Garder seulement les chemins de répertoires pour contexte
-                if extract_first_path(line):
-                    filtered_diff_lines.append(line)
+            if not line.startswith(("+", "-")) and extract_first_path(line) and "RW" not in line:
+                filtered_diff_lines.append(line)
         
         diff_lines = filtered_diff_lines
         if diff_lines:
@@ -1864,7 +1765,7 @@ Développé avec Python et Tkinter
                 title="Exporter la comparaison",
                 defaultextension=".txt",
                 filetypes=[("Text files", "*.txt"), ("All files", "*.*")],
-                initialfile=DIFF_EXPORT_DEFAULT,
+                initialfile=AppConfig.DIFF_EXPORT_DEFAULT,
             )
             if not path:
                 return
